@@ -10,7 +10,7 @@ import torch.multiprocessing as mp
 from torch import distributions
 from torch.distributions import Categorical
 from itertools import islice
-
+import random
 import gym
 from rlhw_util import * # <-- look whats inside here - it could save you a lot of work!
 
@@ -44,7 +44,7 @@ class Actor(nn.Module):
         """
         return Categorical(self(state))
 
-    def get_action(self, state, greedy=None):
+    def get_action(self, state, sigma = 0.2, greedy=None):
         """
         Get rollouts.
         """
@@ -52,7 +52,7 @@ class Actor(nn.Module):
             greedy = not self.training
 
         policy = self.get_policy(state)
-        return MLE(policy) if greedy else policy.sample()
+        return MLE(policy) if random.random() < sigma else policy.sample()
 
 
 class Critic(nn.Module):
@@ -72,7 +72,7 @@ class Critic(nn.Module):
     def forward(self, state):
         # TODO: apply your value function network to get a value given this batch of states
         x = self.fc1(state)
-        #         x = self.fc2(x)
+        x = self.fc2(x)
         x = self.fc3(x)
         return x
 
