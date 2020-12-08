@@ -44,7 +44,7 @@ class Generator(object):
 	Generates rollouts of an environment using a policy
 	'''
 	
-	def __init__(self, env, policy, horizon=None, drop_last_state=True):
+	def __init__(self, env, policy, horizon=9999999, drop_last_state=True):
 		
 		self.created = 0
 		
@@ -52,9 +52,9 @@ class Generator(object):
 		self.env = env
 		
 		self.drop_last_state = drop_last_state
-		
+		self.horizon = horizon
 		self.horizon = self.env.spec.timestep_limit if horizon is None else horizon
-	
+
 	def __len__(self):
 		return self.created
 	
@@ -70,19 +70,19 @@ class Generator(object):
 		actions = []
 		rewards = []
 		
-		states.append(self.env.reset())
+		states.append(self.env.reset().cuda())
 		horizon = self.horizon if horizon is None else horizon
 		for _ in range(horizon):
 			
 			if render:
 				self.env.render()
 			
-			actions.append(self.policy(states[-1]))
+			actions.append(self.policy(states[-1].cuda()))
 			
 			state, reward, done, _ = self.env.step(actions[-1])
 			
-			states.append(state)
-			rewards.append(reward)
+			states.append(state.cuda())
+			rewards.append(reward.cuda())
 			
 			if done:
 				break
@@ -110,7 +110,6 @@ def compute_returns(rewards, discount):
 	returns = rewards.clone()
 	for i in range(len(returns) - 2, -1, -1):
 		returns[i] += discount * returns[i + 1]
-	
 	return returns
 
 def solve(A, b, out=None, bias=True):
@@ -131,12 +130,12 @@ def solve(A, b, out=None, bias=True):
 	
 	if bias:
 		A = torch.cat([A, torch.ones(*(A.size()[:-1] + (1,))).type_as(A)], -1)
-	
-	x, _ = torch.gels(b, A)
+	A = A.cpu()
+	b = b.cpu()
+	x, _ = torch.lstsq(b, A)
 	
 	if out is None:
 		out = nn.Linear(A.size(-1) - 1, b.size(-1), bias=bias).to(A.device)
-	
 	out.weight.data.copy_(x[:A.size(-1) - 1].t())
 	
 	if bias:
